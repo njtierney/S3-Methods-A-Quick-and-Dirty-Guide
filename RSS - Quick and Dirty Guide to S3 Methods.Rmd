@@ -1,0 +1,252 @@
+---
+title: "A Quick and Dirty Guide to S3 Methods in R"
+author: "Nicholas Tierney"
+date: "29 May 2015"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    highlight: tango
+    keep_md: yes
+    theme: readable
+---
+
+- Put their contribution in context, in particular discuss related R functions or packages;
+- Explain the motivation for their contribution;
+- Provide code examples that are reproducible.
+
+S3 methods are a way of writing functions in R that do different things for objects with different classes. 
+
+For example, the function `summary()` used on a dataframe shows descriptive statistics for each variable. For example, the `iris` dataset.
+
+```{r }
+
+summary(iris)
+
+```
+
+But this is different when applied to a linear model
+
+```{r}
+
+lm_iris <- lm(Sepal.Length ~ Sepal.Width, data = iris)
+
+summary(lm_iris)
+
+```
+
+This produces really awesome, different information. It shows what the linear model was, `call`, the `residuals`, `coefficients`, `t-values`, `p-values`, and $R^2$.  It is also **completely** different to the `summary` information we got for the `iris` dataframe.
+
+What's the deal?
+
+R is _hiding_ information from us. There are different functions for `summary`:
+
+- `summary.lm`, for linear models (class = lm)
+- `summary.data.frame`, for data frames (class = data.frame)
+
+But you only see the first part - `summary`.
+
+Quick reminder - the class of an object can be found using the command, `class()`, on the object. 
+
+```{r}
+
+x <- c(1, 2, 3, 4, 5)
+
+x
+
+class(x)
+
+```
+
+Here showing that the object `x` is of class `numeric`. `str()` can also provide more information:
+
+```{r}
+
+str(x)
+
+```
+
+Showing that x is `numeric` and then showing its contents.
+
+Back to using S3 methods. When using `summary` on the `iris` data, R actually calls the function `summary.data.frame`. This is because `iris` is of class `data.frame`.
+
+```{r}
+
+class(iris)
+
+```
+
+R is really crafty and hides all that stuff after the `.` on `summary`. Check it out:
+
+```{r}
+
+summary.data.frame(iris)
+
+```
+
+And 
+
+```{r}
+
+summary.lm(lm_iris)
+
+```
+
+Using the wrong class method can give you some output that can be a bit confusing.
+
+```{r}
+
+summary.data.frame(lm_iris)
+
+```
+
+**So why does R hide important stuff after the `.`?**
+
+Because then you'd have to use a different `summary` function for each different class. Imagine how annoying it would be to only use `summary.lm` for linear models, or `summary.data.frame` for data frames. 
+
+## How do I make my own S3 method?
+
+It's quite easy to set up. 
+
+But let's first talk through an example of why you might want to write your own S3 method.
+
+**Case Study of S3 Methods**
+
+I use decision trees. A lot. And something that I do often is calculate the Residual Sums of Squares, $\sum(Y_i - \hat{Y})^2$. Calculating this isn't too difficult, but the way you calculate the answers is different for each decision tree model. So I wrote a function for each decision tree method, but I decided it would be cool to put them inside the one function, so I didn't have to remember if it was "rss_rpart" or "rss_brt" or "rss_random_forest". So I wrote a single function that checks the class of the object being inputted, and then applied different methods dependent upon the class.
+
+This is what I shall now call a "Poor man's S3 method".
+
+```{r}
+
+dt_rss <- function (x){
+
+#CART
+if ("rpart" %in% class(x)) {
+  
+  result <- sum((residuals(x)^2))
+  
+  return(result)
+  
+}
+
+# BRT
+else if ("gbm" %in% class(x)) {
+  
+  result <- sum(x$residuals^2)
+  
+  return(result)
+
+}
+
+# Random Forest
+
+else if ("randomForest" %in% class(x)) {
+
+  temp <- x$finalModel$y - x$finalModel$predicted  
+  
+  result <- sum(temp^2)  
+  
+  return(result)
+
+}
+  
+else warning(paste(class(x), "is not of an rpart, gbm.step, or randomForest object"))
+}
+##
+
+```
+
+
+Here's it in action:
+
+```{r}
+
+library(rpart)
+
+fit.rpart <- rpart(Kyphosis ~ Age + Number + Start, data = kyphosis)
+
+dt_rss(fit.rpart)
+
+# not an rpart object
+
+fit.lm <- lm(Sepal.Width ~ Species, data = iris)
+
+dt_rss(fit.lm)
+
+```
+
+We can see that when we specify a class it doesn't know we have to spit out a special message, since it doesn't fit into the classes we have specified.
+
+And sure - it works, but it doesn't make you feel good inside, like good programming does, and isn't as modular - you have this one cluster of ifelses, and that could unnessarily slow down analyses. It is also a little more finnicky to edit. So instead we create functions for each class.
+
+Instead, let's apply a quick and dirty approach to S3 methods.
+
+```{r}
+
+#' RSS
+#' \description A function that gives returns the RSS of a decision tree model.
+#'
+#'
+#' Constructor functions
+
+rss <- function(x){
+  
+  UseMethod("rss", x)
+  
+}
+
+rss.default <- function(x, ...)
+{
+  print("You screwed up. I do not know how to handle this object.")
+
+}
+
+
+#' CART
+
+rss.rpart <- function(x){
+  
+  sum((residuals(x)^2))
+  # cart_ghs_rss <- sum((residuals(rpart.ghs)^2))  
+}
+
+
+#' BRT
+
+rss.gbm <- function(x){
+  
+  sum(x$residuals^2)
+  # brt_ghs_rss <- sum(brt.ghs$residuals^2)  
+}
+
+
+#' Random Forest
+#' 
+
+rss.randomForest <- function(x){
+
+  res <- x$finalModel$y - x$finalModel$predicted  
+  
+  sum(res^2)  
+    
+#   residual_rf <- rf_ghs_caret$finalModel$y - rf_ghs_caret$finalModel$predicted  
+#   rf_ghs_rss <- sum(residual_rf^2)  
+}
+
+
+```
+
+So here we define a method, and then we say what to do of classes .myclass,
+
+```{r}
+
+rss(fit.rpart)
+
+rss(lm.fit)
+
+```
+
+
+The `.default` is also really cool as it is what tries to work when you have a class that you haven't specified. In this case, this one here is a little insulting.
+
+
