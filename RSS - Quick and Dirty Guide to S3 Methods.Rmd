@@ -3,17 +3,15 @@ title: "A Quick and Dirty Guide to S3 Methods in R"
 author: "Nicholas Tierney"
 date: "29 May 2015"
 output:
-  word_document: default
-  pdf_document: default
   html_document:
     highlight: tango
     keep_md: yes
     theme: readable
+  pdf_document: default
+  word_document: default
 ---
 
-S3 methods are a way of writing functions in R that do different things for objects with different classes. 
-
-For example, the function `summary()` used on a dataframe shows descriptive statistics for each variable. For example, the `iris` dataset.
+S3 methods are a way of writing functions in R that do different things for objects with different classes. For example, the function `summary()` used on a dataframe shows descriptive statistics for each variable. For example, the `iris` dataset.
 
 ```{r }
 
@@ -175,11 +173,7 @@ And sure - it works, but it doesn't make you feel good inside, like good program
 
 ```{r}
 
-#' RSS
-#' \description A function that gives returns the RSS of a decision tree model.
-#'
-#'
-#' Constructor functions
+# RSS: A Cheap and Nasty Way.
 
 rss <- function(x){
   
@@ -187,11 +181,11 @@ rss <- function(x){
   
 }
 
-rss.default <- function(x, ...)
-{
+rss.default <- function(x, ...){
+  
   print("You screwed up. I do not know how to handle this object.")
 
-}
+  }
 
 
 #' CART
@@ -199,30 +193,25 @@ rss.default <- function(x, ...)
 rss.rpart <- function(x){
   
   sum((residuals(x)^2))
-  # cart_ghs_rss <- sum((residuals(rpart.ghs)^2))  
+  
 }
 
-
-#' BRT
+# BRT
 
 rss.gbm <- function(x){
   
   sum(x$residuals^2)
-  # brt_ghs_rss <- sum(brt.ghs$residuals^2)  
+ 
 }
 
-
-#' Random Forest
-#' 
+# Random Forest
 
 rss.randomForest <- function(x){
 
-  res <- x$finalModel$y - x$finalModel$predicted  
+  res <- x$y - x$predicted  
   
   sum(res^2)  
     
-#   residual_rf <- rf_ghs_caret$finalModel$y - rf_ghs_caret$finalModel$predicted  
-#   rf_ghs_rss <- sum(residual_rf^2)  
 }
 
 
@@ -241,4 +230,8 @@ rss(lm.fit)
 
 The `.default` is also really cool as it is what tries to work when you have a class that you haven't specified. In this case, this one here is a little insulting.
 
+Why are they called 
 
+From what I've read, S3 methods are called such because they came along with the third version of the S Programming Language - the language that R was based upon. Hence, S3.
+
+This guide is by no means complete, it could even be hella inaccurate, and I've probably offended some programmers out there by writing it, but hey - it's the internet, if you think I'm wrong, or I could do this better, leave a comment below, or better yet, **check it out on GitHub**, fork it, change it, and send a pull request.
